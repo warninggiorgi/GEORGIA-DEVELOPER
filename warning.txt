@@ -1,3 +1,4 @@
+! Sep 1, 2025 https://mykadri.tv
 mykadri.tv##main > div.avc-asvla [href^="https://asvla.com/asvla-cards/landing"]
 mykadri.tv##main > div.avc-asvla [href^="https://asvla.com/free"]
 mykadri.tv##main > div.avc-asvla [href^="https://asvla.com/welcome"]
@@ -8,6 +9,7 @@ mykadri.tv##center > [href^="https://asvla.com/free"]
 mykadri.tv##center > .avc-asvla > [href^="https://asvla.com/welcome"]
 mykadri.tv##center > [href^="https://asvla.com/welcome"]
 ##.catfish
+##center
 ||hdd.mykadri.com/VIP_Cards.mp4$media
 ||hdd.mykadri.com/Welcome_Bonus.mp4$media
 ||hdd.mykadri.com/Free_Cashouts.mp4$media
