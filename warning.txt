@@ -24,9 +24,6 @@ geosaitebi.tv##[href^="https://asvla.com/welcome"]
 ||geosaitebi.tv/upload/preroll/*.mp4$media
 ||geosaitebi.tv/upload/preroll/wellcome.mp4$media
 
+! Sep 3, 2025 https://animeb.ge
+||animeb.ge/renode_space_banner_desktop1.png$image
 
-animeb.ge##html > iframe
-
-https://www.googletagmanager.com
-https://mc.yandex.ru
-https://www.googletagmanager.com
