@@ -26,4 +26,3 @@ geosaitebi.tv##[href^="https://asvla.com/welcome"]
 
 ! Sep 3, 2025 https://animeb.ge
 ||animeb.ge/renode_space_banner_desktop1.png$image
-
