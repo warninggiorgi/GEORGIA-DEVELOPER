@@ -38,5 +38,6 @@ qartulad.in##.full-baner-2
 qartulad.in##.ad-catfish__desktop.ad-catfish
 qartulad.in##.div-html-1.html-1 > center > .avc-cro
 ##.ad-catfish__desktop.ad-catfish
+##.div-html-3 > .avc-cro
 
 
