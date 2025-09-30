@@ -1,18 +1,5 @@
 ! Sep 1, 2025 https://mykadri.tv
-mykadri.tv##main > div.avc-asvla [href^="https://asvla.com/asvla-cards/landing"]
-mykadri.tv##main > div.avc-asvla [href^="https://asvla.com/free"]
-mykadri.tv##main > div.avc-asvla [href^="https://asvla.com/welcome"]
-mykadri.tv##center > .avc-asvla > [href^="https://asvla.com/asvla-cards/landing"]
-mykadri.tv##center > [href^="https://asvla.com/asvla-cards/landing"]
-mykadri.tv##center > .avc-asvla > [href^="https://asvla.com/free"]
-mykadri.tv##center > [href^="https://asvla.com/free"]
-mykadri.tv##center > .avc-asvla > [href^="https://asvla.com/welcome"]
-mykadri.tv##center > [href^="https://asvla.com/welcome"]
-##.catfish
-##center
-||hdd.mykadri.com/VIP_Cards.mp4$media
-||hdd.mykadri.com/Welcome_Bonus.mp4$media
-||hdd.mykadri.com/Free_Cashouts.mp4$media
+
 
 ! Sep 1, 2025 https://geosaitebi.tv
 geosaitebi.tv##[href^="https://asvla.com/asvla-cards/landing"]
@@ -73,4 +60,5 @@ qartulad.in##.full-baner-2 > .avc-cro > [href]
 
 ! Sep 10, 2025 https://kinoebi.in
 kinoebi.in##.grecaptcha-badge
+
 
