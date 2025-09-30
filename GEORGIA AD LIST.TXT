@@ -39,6 +39,26 @@ qartulad.in##.ad-catfish__desktop.ad-catfish
 qartulad.in##.div-html-1.html-1 > center > .avc-cro
 ##.ad-catfish__desktop.ad-catfish
 ##.div-html-3 > .avc-cro
+! Sep 30, 2025 https://qartulad.in
+qartulad.in##.div-html-3 > .avc-cro > [href^="https://asvla.com/asvla-cards/landing"]
+qartulad.in##.div-html-3 > .avc-cro > [href^="https://asvla.com/free"]
+||qartulad.in/upload/banners/wellcome/960x120-4.png$image
+||qartulad.in/upload/banners/wellcome/960x120-5.png$image
+qartulad.in##.div-html-1.html-1 > center > .avc-cro > [href^="https://asvla.com/asvla-cards/landing"]
+||qartulad.in/upload/banners/cashouts/960x120-4.png$image
+||qartulad.in/upload/preroll/vipcards.mp4$media
+||qartulad.in/upload/preroll/wellcome.mp4$media
+||qartulad.in/upload/preroll/wellcome.mp4$media
+||qartulad.in/upload/preroll/wellcome.mp4$media
+||qartulad.in/upload/preroll/wellcome.mp4$media
+qartulad.in##.full-baner-2 > .avc-cro > [href^="https://asvla.com/asvla-cards/landing"]
+qartulad.in##.full-baner-2 > .avc-cro > [href]
+||qartulad.in/upload/*$image
+||qartulad.in/upload/preroll/cashouts.mp4$media
+||qartulad.in/upload/preroll/cashouts.mp4$media
+
+
+
 
 
 
@@ -49,5 +69,8 @@ qartulad.in##.div-html-1.html-1 > center > .avc-cro
 
 
 
+
+
 ! Sep 10, 2025 https://kinoebi.in
 kinoebi.in##.grecaptcha-badge
+
