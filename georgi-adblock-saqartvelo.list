@@ -10,7 +10,15 @@ mykadri.tv##div.avc-asvla:nth-of-type(3)
 attirecideryeah.com
 
 
+
 ! Oct 27, 2025 https://ufasofilmebi.ge
 ufasofilmebi.ge##iframe:nth-of-type(3)
 ufasofilmebi.ge##iframe:nth-of-type(4)
 
+
+! Oct 29, 2025 https://geosaitebi.tv
+geosaitebi.tv##center
+||geosaitebi.tv/upload/preroll/cashouts.mp4$media
+||geosaitebi.tv/upload/preroll/well.mp4$media
+||geosaitebi.tv/upload/*$image
+||geosaitebi.tv/upload/preroll/vipcards.mp4$media
