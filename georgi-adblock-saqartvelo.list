@@ -1,3 +1,13 @@
+! Nov 2, 2025 https://utweb.rainberrytv.com
+utweb.rainberrytv.com##.media-library-container > .card-container > .card
+utweb.rainberrytv.com###sidebar > .card-container
+||video.rainberrytv.com/dashboard$subdocument
+||video.rainberrytv.com/smart2/display/smart.html$subdocument
+utweb.rainberrytv.com##.dashboard-inner-container > .card-container > .card
+
+
+
+
 2! Oct 23, 2025 https://mykadri.tv
 mykadri.tv##.mt-3.text-center.rentplace > center
 mykadri.tv##.catfish
