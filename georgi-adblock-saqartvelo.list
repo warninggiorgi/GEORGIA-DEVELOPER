@@ -106,6 +106,13 @@ https://content.jwplatform.com
 https://cdn.jwplayer.com
 
 
+btweb.rainberrytv.com###dashboard-player-ad-card
+##.card-frame
+btweb.rainberrytv.com###sidebar > div.card-container:last-child
+btweb.rainberrytv.com###dashboard > div.dashboard-inner-container > div.card-container:first-child > div.card
+btweb.rainberrytv.com###dashboard > div.dashboard-inner-container > div.content-player-container:nth-child(4) > div.content-player > div.card
+btweb.rainberrytv.com###dashboard > div.dashboard-inner-container > div.content-player-container:nth-child(4)
+btweb.rainberrytv.com###media-library > div.media-library-inner-container > div.media-library-container:first-child > div.card-container:first-child > div.card
 
 
 
