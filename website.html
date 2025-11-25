@@ -1,63 +1,372 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AdGuard DoH тестёр — безопасно и тупо просто</title>
-  <style>
-    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:24px;background:#0f1115;color:#e6eef6}
-    .card{background:#111317;padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.6);max-width:860px}
-    label,input,button{display:inline-block;margin:6px 0}
-    input[type=text]{width:60%;padding:8px;border-radius:8px;border:1px solid #222;background:#0c0d0f;color:#dfe}
-    button{padding:8px 12px;border-radius:8px;border:0;background:#1f6feb;color:white;cursor:pointer}
-    pre{background:#08090b;padding:12px;border-radius:8px;overflow:auto;white-space:pre-wrap}
-    .note{color:#9fb0d3;font-size:.9rem;margin-top:8px}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Encrypted P2P Chat — AES-GCM + WebRTC (manual signaling)</title>
+<style>
+  :root{--bg:#0f1115;--card:#111317;--muted:#9fb0d3;--accent:#1f6feb;--text:#e6eef6}
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);margin:18px}
+  .wrap{max-width:1000px;margin:0 auto}
+  .card{background:var(--card);padding:18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.6);margin-bottom:16px}
+  h1,h2{margin:0 0 10px 0}
+  label{display:block;margin-top:8px;font-size:.9rem;color:var(--muted)}
+  input[type=text], input[type=password], textarea, select {
+    width:100%;padding:8px;border-radius:8px;border:1px solid #222;background:#0c0d0f;color:var(--text);
+    box-sizing:border-box;margin-top:6px;font-family:monospace
+  }
+  textarea{min-height:80px;resize:vertical}
+  .row{display:flex;gap:12px}
+  .col{flex:1}
+  button{background:var(--accent);color:white;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+  .muted{color:var(--muted);font-size:.9rem}
+  #chatLog{background:#08090b;padding:12px;border-radius:8px;height:260px;overflow:auto;white-space:pre-wrap;font-family:monospace}
+  .msg-me{color:#bfe3ff}
+  .msg-peer{color:#ffd9b3}
+  .small{font-size:.85rem;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:820px){ .grid{grid-template-columns:1fr} .row{flex-direction:column} }
+  .danger{background:#3a1a1a;color:#ffcccb;padding:8px;border-radius:8px}
+  footer{color:var(--muted);font-size:.8rem;margin-top:8px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+</style>
 </head>
 <body>
+<div class="wrap">
   <div class="card">
-    <h2>AdGuard DoH тестёр</h2>
-    <p class="note">Этот сайт делает зашифрованный DNS-запрос (DoH) к публичному AdGuard серверу и показывает ответ. Если браузер жалуется на CORS — см. раздел «Если CORS мешает» ниже.</p>
+    <h1>Encrypted P2P Chat</h1>
+    <p class="muted">End-to-end AES-GCM. Manual signaling (copy/paste). No third-party servers for message transport.</p>
 
-    <div>
-      <label>Домен:</label>
-      <input id="domain" type="text" value="example.com" />
-      <label>Тип (A, AAAA, MX...):</label>
-      <input id="type" type="text" value="A" style="width:70px" />
-      <button id="go">Запросить</button>
+    <div class="grid">
+      <div class="card" style="padding:12px;">
+        <h2>Identity & Key</h2>
+        <label>Nickname</label>
+        <input id="nick" type="text" value="Alice" />
+        <label>Passphrase (shared secret for E2E)</label>
+        <input id="pass" type="password" placeholder="Type a secret — both peers must use same passphrase" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="deriveBtn">Derive Key</button>
+          <button id="clearBtn">Clear Key</button>
+        </div>
+        <p class="small">PBKDF2-derived AES-GCM key. Use a long passphrase. If you want real security, exchange a strong secret out-of-band.</p>
+        <div id="keyState" class="small muted">Key: not derived</div>
+      </div>
+
+      <div class="card" style="padding:12px;">
+        <h2>Connection & Signaling</h2>
+        <label>Role</label>
+        <select id="role">
+          <option value="offer">Create offer (Caller)</option>
+          <option value="answer">Receive offer (Callee)</option>
+        </select>
+
+        <div style="margin-top:8px">
+          <button id="startBtn">Start / Reset</button>
+        </div>
+
+        <label style="margin-top:10px">Local SDP (copy and send to remote)</label>
+        <textarea id="localSDP" placeholder="Local SDP appears here"></textarea>
+
+        <label>Remote SDP (paste SDP from remote and press Apply)</label>
+        <textarea id="remoteSDP" placeholder="Paste remote SDP here"></textarea>
+        <div class="controls">
+          <button id="applyRemote">Apply Remote SDP</button>
+          <button id="copyLocal">Copy Local SDP</button>
+        </div>
+        <p class="small">Manual signaling: copy local SDP to partner, they paste theirs back. No servers involved.</p>
+      </div>
     </div>
 
-    <h3>Результат</h3>
-    <pre id="out">Нажми «Запросить».</pre>
-    <p class="note">Эндпойнт: <code>https://dns.adguard.com/dns-query</code> (публичный DoH от AdGuard).</p>
+    <div class="card" style="padding:12px;margin-top:12px">
+      <h2>Chat</h2>
+      <div id="chatLog">System ready. Derive a key, pick role, Start, then exchange SDPs.</div>
+
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="msg" type="text" placeholder="Type message..." />
+        <button id="sendBtn">Send</button>
+      </div>
+      <div style="margin-top:8px">
+        <button id="copyLog">Copy Chat Log</button>
+        <button id="downloadLog">Download Log</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:12px;margin-top:12px">
+      <h2>AdGuard DoH Resolver (info)</h2>
+      <label>Domain to resolve</label>
+      <input id="dohDomain" type="text" value="example.com" />
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="dohBtn">Resolve via AdGuard DoH</button>
+        <button id="dohFallbackBtn">Resolve via google (fallback)</button>
+      </div>
+      <pre id="dohOut" style="background:#08090b;padding:8px;border-radius:8px;margin-top:8px">DoH output here</pre>
+      <p class="small">Note: browser may block direct DoH calls due to CORS. This resolver tries AdGuard at <code>https://dns.adguard.com/dns-query</code>. If CORS blocks it, use a server-side proxy or set system/browser DoH to AdGuard.</p>
+    </div>
+
+    <footer>Local-only chat, manual signaling, AES-GCM E2E. Use strong passphrases. This is quick code for privacy-conscious experiments — not a hardened production messenger.</footer>
   </div>
+</div>
 
 <script>
-const out = document.getElementById('out');
-const domainInput = document.getElementById('domain');
-const typeInput = document.getElementById('type');
-const btn = document.getElementById('go');
+/* Minimal, self-contained encrypted P2P chat
+   - PBKDF2(passphrase, salt) -> AES-GCM key
+   - AES-GCM encrypt/decrypt messages
+   - WebRTC DataChannel transport
+   - Manual copy/paste signaling (SDP)
+*/
 
-async function dohJsonQuery(domain, type = 'A') {
-  // Пытаемся запросить формат application/dns-json (работает у большинства публичных DoH)
-  const url = `https://dns.adguard.com/dns-query?name=${encodeURIComponent(domain)}&type=${encodeURIComponent(type)}`;
-  const headers = { 'Accept': 'application/dns-json' };
-  const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+// Helpers
+function t2b(t){return new TextEncoder().encode(t)}
+function b2t(b){return new TextDecoder().decode(b)}
+function concatUint8(a,b){ const r=new Uint8Array(a.length+b.length); r.set(a,0); r.set(b,a.length); return r; }
+function abToBase64(buf){ let bin=''; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]); return btoa(bin); }
+function base64ToAb(b64){ const bin = atob(b64); const len = bin.length; const arr = new Uint8Array(len); for(let i=0;i<len;i++) arr[i]=bin.charCodeAt(i); return arr.buffer; }
+function now(){ return new Date().toISOString(); }
+
+// Crypto: derive key with PBKDF2
+let AES_KEY = null;
+async function deriveKey(passphrase, saltText = 'p2p-chat-salt'){
+  const salt = t2b(saltText);
+  const pwKey = await crypto.subtle.importKey('raw', t2b(passphrase), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({
+    name: 'PBKDF2',
+    salt,
+    iterations: 200000,
+    hash: 'SHA-256'
+  }, pwKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt','decrypt']);
+  AES_KEY = key;
+  return key;
 }
 
-btn.onclick = async () => {
-  out.textContent = 'Выполняю запрос...';
-  const domain = domainInput.value.trim();
-  const type = typeInput.value.trim() || 'A';
-  try {
-    const json = await dohJsonQuery(domain, type);
-    out.textContent = JSON.stringify(json, null, 2);
-  } catch (err) {
-    out.textContent = 'Ошибка: ' + err.message + '\n\nВозможные причины: CORS (браузер блокирует), отсутствие JSON режима на сервере или сетевые проблемы.\n\nЕсли это CORS — см. инструкцию внизу.';
-  }
+// AES-GCM encrypt/decrypt. We'll prefix iv(12) to ciphertext and encode base64
+async function encryptMessage(plainText){
+  if(!AES_KEY) throw new Error('Key not derived');
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, AES_KEY, t2b(plainText));
+  const combined = concatUint8(iv, new Uint8Array(ct));
+  return abToBase64(combined.buffer);
+}
+
+async function decryptMessage(b64){
+  if(!AES_KEY) throw new Error('Key not derived');
+  const buf = base64ToAb(b64);
+  const arr = new Uint8Array(buf);
+  const iv = arr.slice(0,12);
+  const ct = arr.slice(12);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, AES_KEY, ct);
+  return b2t(pt);
+}
+
+// UI utilities
+const ui = {
+  nick: document.getElementById('nick'),
+  pass: document.getElementById('pass'),
+  deriveBtn: document.getElementById('deriveBtn'),
+  clearBtn: document.getElementById('clearBtn'),
+  keyState: document.getElementById('keyState'),
+  role: document.getElementById('role'),
+  startBtn: document.getElementById('startBtn'),
+  localSDP: document.getElementById('localSDP'),
+  remoteSDP: document.getElementById('remoteSDP'),
+  applyRemote: document.getElementById('applyRemote'),
+  copyLocal: document.getElementById('copyLocal'),
+  chatLog: document.getElementById('chatLog'),
+  msg: document.getElementById('msg'),
+  sendBtn: document.getElementById('sendBtn'),
+  copyLog: document.getElementById('copyLog'),
+  downloadLog: document.getElementById('downloadLog'),
+  dohDomain: document.getElementById('dohDomain'),
+  dohBtn: document.getElementById('dohBtn'),
+  dohFallbackBtn: document.getElementById('dohFallbackBtn'),
+  dohOut: document.getElementById('dohOut'),
+  startBtn: document.getElementById('startBtn'),
 };
+
+// Logging
+function appendLog(text, cls=''){
+  const el = document.createElement('div');
+  el.textContent = `[${now()}] ${text}`;
+  if(cls) el.className = cls;
+  ui.chatLog.appendChild(el);
+  ui.chatLog.scrollTop = ui.chatLog.scrollHeight;
+}
+
+// Derive/clear key
+ui.deriveBtn.onclick = async () => {
+  const p = ui.pass.value;
+  if(!p){ alert('Enter passphrase'); return; }
+  try{
+    await deriveKey(p);
+    ui.keyState.textContent = 'Key: derived (ready)';
+    appendLog('Key derived locally', 'small');
+  }catch(e){ ui.keyState.textContent = 'Key: error'; appendLog('Key derivation failed: '+e.message); }
+};
+ui.clearBtn.onclick = () => {
+  AES_KEY = null;
+  ui.keyState.textContent = 'Key: not derived';
+  appendLog('Key cleared', 'small');
+};
+
+// WebRTC setup
+let pc = null;
+let dc = null;
+function setupPeerConnection(isOffer){
+  if(pc){ pc.close(); pc = null; dc = null; ui.localSDP.value=''; ui.remoteSDP.value=''; }
+  pc = new RTCPeerConnection();
+  pc.onicecandidate = e => { if(e.candidate === null){ /* final local description ready */ ui.localSDP.value = pc.localDescription ? pc.localDescription.sdp : ''; } };
+  pc.onconnectionstatechange = () => appendLog('Connection state: ' + pc.connectionState, 'small');
+  pc.oniceconnectionstatechange = () => appendLog('ICE state: ' + pc.iceConnectionState, 'small');
+
+  if(isOffer){
+    dc = pc.createDataChannel('chat', { ordered: true });
+    setupDataChannel(dc);
+    pc.createOffer().then(o => pc.setLocalDescription(o)).catch(e => appendLog('Offer error: ' + e.message));
+  } else {
+    pc.ondatachannel = ev => { dc = ev.channel; setupDataChannel(dc); appendLog('DataChannel received'); };
+  }
+}
+
+function setupDataChannel(channel){
+  channel.onopen = () => appendLog('DataChannel open', 'small');
+  channel.onclose = () => appendLog('DataChannel closed', 'small');
+  channel.onmessage = async e => {
+    try{
+      const payload = JSON.parse(e.data);
+      if(payload.type === 'msg' && payload.data){
+        const plain = await decryptMessage(payload.data);
+        appendLog(`${payload.nick} → ${plain}`, 'msg-peer');
+      } else {
+        appendLog('Unknown payload received', 'small');
+      }
+    }catch(err){ appendLog('Decrypt/parse error: ' + err.message, 'danger'); }
+  };
+}
+
+// Buttons: Start / Reset
+ui.startBtn.onclick = () => {
+  if(!AES_KEY){ if(!confirm('Key not derived. Continue without key? Messages will fail to decrypt.')){} }
+  const isOffer = ui.role.value === 'offer';
+  setupPeerConnection(isOffer);
+  appendLog('PeerConnection created as ' + (isOffer ? 'offerer' : 'answerer'), 'small');
+};
+
+// Apply remote SDP
+ui.applyRemote.onclick = async () => {
+  if(!pc){ alert('Start connection first.'); return; }
+  const sdpText = ui.remoteSDP.value.trim();
+  if(!sdpText){ alert('Paste remote SDP.'); return; }
+  try{
+    const remoteDesc = { type: (ui.role.value === 'offer' ? 'answer' : 'offer'), sdp: sdpText };
+    await pc.setRemoteDescription(remoteDesc);
+    appendLog('Remote description applied', 'small');
+    if(ui.role.value === 'answer' && !pc.remoteDescription){ // as callee, we received offer, need to create answer
+      // But in manual flow the caller sets local & sends to callee, then callee pastes it and should createAnswer
+    }
+    // If we are answerer and remote was offer, create and set local answer
+    if(ui.role.value === 'answer'){
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      // localSDP will be set when ICE gathers (onicecandidate final)
+      appendLog('Answer created. Copy local SDP and send to remote.', 'small');
+    }
+  }catch(e){ appendLog('Apply remote error: '+e.message, 'danger'); }
+};
+
+// Copy local SDP
+ui.copyLocal.onclick = async () => {
+  const text = ui.localSDP.value;
+  if(!text) { alert('Local SDP empty. Wait until ICE completes or click Start again.'); return; }
+  await navigator.clipboard.writeText(text);
+  appendLog('Local SDP copied to clipboard', 'small');
+};
+
+// Send message
+ui.sendBtn.onclick = async () => {
+  const text = ui.msg.value.trim();
+  if(!text) return;
+  if(!dc || dc.readyState !== 'open'){ appendLog('DataChannel not open', 'danger'); return; }
+  try{
+    const nick = ui.nick.value || 'Anon';
+    const enc = await encryptMessage(text);
+    const payload = JSON.stringify({ type:'msg', nick, data: enc });
+    dc.send(payload);
+    appendLog(`${nick} ← ${text}`, 'msg-me');
+    ui.msg.value = '';
+  }catch(e){ appendLog('Send error: '+e.message, 'danger'); }
+};
+
+// Copy chat log to clipboard
+ui.copyLog.onclick = async () => {
+  await navigator.clipboard.writeText(ui.chatLog.innerText);
+  appendLog('Chat log copied to clipboard', 'small');
+};
+
+// Download log as .txt
+ui.downloadLog.onclick = () => {
+  const blob = new Blob([ui.chatLog.innerText], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'chat-log.txt'; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  appendLog('Chat log downloaded', 'small');
+};
+
+// DoH Resolve (AdGuard) — using JSON mode
+async function dohResolveAdGuard(domain){
+  const url = `https://dns.adguard.com/dns-query?name=${encodeURIComponent(domain)}&type=A`;
+  // Many DoH endpoints require specific Accept header; some block CORS
+  try{
+    const res = await fetch(url, { headers: { 'Accept': 'application/dns-json' } });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const json = await res.json();
+    ui.dohOut.textContent = JSON.stringify(json, null, 2);
+  }catch(e){
+    ui.dohOut.textContent = 'Error calling AdGuard DoH: ' + e.message + '\nPossible CORS block. Try using a server-side proxy or set system/browser DoH to AdGuard.';
+  }
+}
+
+// DoH fallback: google resolver
+async function dohResolveGoogle(domain){
+  const url = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const json = await res.json();
+    ui.dohOut.textContent = JSON.stringify(json, null, 2);
+  }catch(e){
+    ui.dohOut.textContent = 'Error calling google DoH: ' + e.message;
+  }
+}
+
+ui.dohBtn.onclick = () => dohResolveAdGuard(ui.dohDomain.value.trim());
+ui.dohFallbackBtn.onclick = () => dohResolveGoogle(ui.dohDomain.value.trim());
+
+// Small UX: auto-create answer if you paste offer as answerer
+ui.remoteSDP.addEventListener('input', async () => {
+  const txt = ui.remoteSDP.value.trim();
+  if(!txt) return;
+  if(!pc) return;
+  try{
+    const parsedType = (txt.includes('a=ice-ufrag') || txt.includes('v=')) ? 'offer' : null;
+    // We avoid trying to parse too deep; when user clicks Apply Remote they handle it.
+  }catch(e){}
+});
+
+// Make sure localSDP is populated when localDescription set (some browsers call onicecandidate multiple times)
+const origOnIce = () => {};
+// When pc.localDescription ready, set localSDP immediately (final SDP may be updated by ICE)
+function watchLocalDesc(){
+  if(!pc) return;
+  if(pc.localDescription) ui.localSDP.value = pc.localDescription.sdp;
+}
+
+// Observe pc changes
+const origCreate = RTCPeerConnection.prototype.createOffer;
+const origCreateAnswer = RTCPeerConnection.prototype.createAnswer;
+// Not overriding further — keep simple.
+
+appendLog('Interface loaded. Derive key and start a connection when ready.', 'small');
+
 </script>
 </body>
 </html>
