@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AdGuard DoH тестёр — безопасно и тупо просто</title>
+  <style>
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:24px;background:#0f1115;color:#e6eef6}
+    .card{background:#111317;padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.6);max-width:860px}
+    label,input,button{display:inline-block;margin:6px 0}
+    input[type=text]{width:60%;padding:8px;border-radius:8px;border:1px solid #222;background:#0c0d0f;color:#dfe}
+    button{padding:8px 12px;border-radius:8px;border:0;background:#1f6feb;color:white;cursor:pointer}
+    pre{background:#08090b;padding:12px;border-radius:8px;overflow:auto;white-space:pre-wrap}
+    .note{color:#9fb0d3;font-size:.9rem;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>AdGuard DoH тестёр</h2>
+    <p class="note">Этот сайт делает зашифрованный DNS-запрос (DoH) к публичному AdGuard серверу и показывает ответ. Если браузер жалуется на CORS — см. раздел «Если CORS мешает» ниже.</p>
+
+    <div>
+      <label>Домен:</label>
+      <input id="domain" type="text" value="example.com" />
+      <label>Тип (A, AAAA, MX...):</label>
+      <input id="type" type="text" value="A" style="width:70px" />
+      <button id="go">Запросить</button>
+    </div>
+
+    <h3>Результат</h3>
+    <pre id="out">Нажми «Запросить».</pre>
+    <p class="note">Эндпойнт: <code>https://dns.adguard.com/dns-query</code> (публичный DoH от AdGuard).</p>
+  </div>
+
+<script>
+const out = document.getElementById('out');
+const domainInput = document.getElementById('domain');
+const typeInput = document.getElementById('type');
+const btn = document.getElementById('go');
+
+async function dohJsonQuery(domain, type = 'A') {
+  // Пытаемся запросить формат application/dns-json (работает у большинства публичных DoH)
+  const url = `https://dns.adguard.com/dns-query?name=${encodeURIComponent(domain)}&type=${encodeURIComponent(type)}`;
+  const headers = { 'Accept': 'application/dns-json' };
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+btn.onclick = async () => {
+  out.textContent = 'Выполняю запрос...';
+  const domain = domainInput.value.trim();
+  const type = typeInput.value.trim() || 'A';
+  try {
+    const json = await dohJsonQuery(domain, type);
+    out.textContent = JSON.stringify(json, null, 2);
+  } catch (err) {
+    out.textContent = 'Ошибка: ' + err.message + '\n\nВозможные причины: CORS (браузер блокирует), отсутствие JSON режима на сервере или сетевые проблемы.\n\nЕсли это CORS — см. инструкцию внизу.';
+  }
+};
+</script>
+</body>
+</html>
