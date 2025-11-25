@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Mini Browser with Blocklist (client-side)</title>
+<style>
+  :root{--bg:#0f1115;--panel:#0e1013;--card:#111317;--muted:#9fb0d3;--accent:#1f6feb;--text:#e6eef6}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+  .wrap{display:grid;grid-template-columns:360px 1fr;gap:12px;height:100vh;padding:12px;box-sizing:border-box}
+  .panel{background:var(--panel);padding:12px;border-radius:10px;overflow:auto}
+  .card{background:var(--card);padding:10px;border-radius:8px;margin-bottom:12px}
+  input, textarea, select, button{width:100%;padding:8px;border-radius:8px;border:1px solid #222;background:#0c0d0f;color:var(--text);box-sizing:border-box}
+  button{background:var(--accent);border:0;cursor:pointer}
+  label{font-size:12px;color:var(--muted);display:block;margin:6px 0}
+  #viewer{width:100%;height:100%;border-radius:8px;border:1px solid #222;background:white}
+  .small{font-size:12px;color:var(--muted)}
+  .flex{display:flex;gap:8px}
+  .flex > *{flex:1}
+  .list{max-height:180px;overflow:auto;border:1px solid #222;padding:6px;border-radius:6px;background:#0b0c0e}
+  .removed{color:#ffb3b3;font-size:12px}
+  .ok{color:#bfe3ff;font-size:12px}
+  footer{color:var(--muted);font-size:12px;margin-top:8px}
+  @media(max-width:900px){ .wrap{grid-template-columns:1fr;grid-auto-rows:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="panel">
+    <div class="card">
+      <h3>Mini Browser + Blocklist</h3>
+      <div class="small">This client-side tool fetches pages through a public CORS proxy, strips scripts and other elements that match the blocklist, and displays the sanitized page.</div>
+    </div>
+
+    <div class="card">
+      <label>Target URL</label>
+      <input id="url" placeholder="https://example.com" value="https://example.com"/>
+      <label>Fetch proxy (if CORS fails)</label>
+      <select id="proxy">
+        <option value="https://api.allorigins.win/raw?url=">AllOrigins (public)</option>
+        <option value="https://cors.bridged.cc/">Bridged.CC (public)</option>
+      </select>
+      <div style="margin-top:8px" class="flex">
+        <button id="loadBtn">Load & Sanitize</button>
+        <button id="openBtn">Open Raw</button>
+      </div>
+      <label style="margin-top:10px">Remove inline &lt;script&gt;?</label>
+      <select id="removeInline">
+        <option value="yes" selected>Yes — strip inline scripts</option>
+        <option value="no">No — keep inline scripts (not recommended)</option>
+      </select>
+      <label style="margin-top:10px">Blocklist source</label>
+      <input id="blockUrl" value="https://raw.githubusercontent.com/warninggiorgi/GEORGIA-DEVELOPER/refs/heads/main/georgi-adblock-saqartvelo.list"/>
+      <div style="margin-top:8px" class="flex">
+        <button id="reloadList">Reload list</button>
+        <button id="showList">Show list</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label>Blocklist preview / patterns</label>
+      <div id="listBox" class="list small">Blocklist not loaded yet.</div>
+      <div style="margin-top:8px" class="flex">
+        <button id="enableBlock">Enable blocking</button>
+        <button id="disableBlock">Disable blocking</button>
+      </div>
+      <div style="margin-top:8px" class="small">Matches are substring / simple wildcard (*). Example: <code>ads.example.com</code> or <code>*.doubleclick.net</code></div>
+    </div>
+
+    <div class="card">
+      <label>Last run</label>
+      <div id="lastRun" class="small">—</div>
+      <label style="margin-top:8px">Removed items</label>
+      <div id="removed" class="list removed">—</div>
+      <div style="margin-top:8px" class="small">Notes: some complex resources may still load. For full coverage use a network-level or browser-extension adblocker.</div>
+    </div>
+
+    <footer class="small">I made this so you can test blocking without writing server code. Want a server proxy/extension instead? Say so.</footer>
+  </aside>
+
+  <main class="panel">
+    <div class="card" style="height:100%;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1"><strong>Sanitized preview</strong></div>
+        <div class="small" id="status">idle</div>
+      </div>
+      <iframe id="viewer" sandbox="allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
+    </div>
+  </main>
+</div>
+
+<script>
+(async function(){
+  const $ = id => document.getElementById(id);
+  const loadBtn = $('loadBtn'), openBtn = $('openBtn'), proxySel = $('proxy');
+  const blockUrlInput = $('blockUrl'), reloadListBtn = $('reloadList'), showListBtn = $('showList');
+  const listBox = $('listBox'), removedBox = $('removed'), lastRun = $('lastRun');
+  const enableBlockBtn = $('enableBlock'), disableBlockBtn = $('disableBlock');
+  const viewer = $('viewer'), status = $('status'), urlInput = $('url'), removeInlineSel = $('removeInline');
+
+  let blockPatterns = [];
+  let blockingEnabled = true;
+
+  // fetch and parse blocklist file -> patterns array
+  async function loadBlocklist(url){
+    listBox.textContent = 'Loading...';
+    try{
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const txt = await res.text();
+      const lines = txt.split(/\\r?\\n/).map(l=>l.trim()).filter(l=>l && !l.startsWith('#'));
+      // convert hosts/adblock formats: allow simple wildcard * and substrings
+      const patterns = [];
+      for(const l of lines){
+        let s = l;
+        // basic clean: remove leading "||" or "0.0.0.0 " or similar
+        s = s.replace(/^0\\.0\\.0\\.0\\s+/, '').replace(/^\\|\\|/, '').replace(/^https?:\\/\\//, '').trim();
+        if(!s) continue;
+        patterns.push(s);
+      }
+      blockPatterns = patterns;
+      listBox.textContent = patterns.slice(0,500).join('\\n') || '(empty)';
+      return patterns;
+    }catch(e){
+      listBox.textContent = 'Failed to load: ' + e.message;
+      blockPatterns = [];
+      return [];
+    }
+  }
+
+  // simple pattern match: support '*' wildcard (matches any substring) and plain substring
+  function matchesBlock(url){
+    if(!blockingEnabled || !blockPatterns.length) return false;
+    const u = url.toLowerCase();
+    for(const p of blockPatterns){
+      const pat = p.toLowerCase();
+      if(pat.includes('*')){
+        // convert to regex
+        const rx = new RegExp('^' + pat.split('*').map(escapeRegex).join('.*') + '$');
+        if(rx.test(u)) return true;
+      } else {
+        if(u.includes(pat)) return true;
+      }
+    }
+    return false;
+  }
+  function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&'); }
+
+  // sanitize HTML string: remove <script> tags (and optionally inline scripts), remove elements with src/href matching blocklist
+  function sanitizeHtml(htmlText, baseUrl, opts = { removeInline:true }){
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlText, 'text/html');
+
+    // insert base tag so relative URLs resolve
+    let base = doc.querySelector('base');
+    if(!base){
+      base = doc.createElement('base');
+      base.setAttribute('href', baseUrl);
+      const head = doc.querySelector('head') || doc.documentElement;
+      head.insertBefore(base, head.firstChild);
+    } else {
+      base.setAttribute('href', baseUrl);
+    }
+
+    const removed = [];
+
+    // remove <script> tags: external scripts if match blocklist; inline scripts optionally removed
+    const scripts = Array.from(doc.scripts || []);
+    for(const s of scripts){
+      const src = s.getAttribute ? s.getAttribute('src') : null;
+      if(src){
+        const abs = new URL(src, baseUrl).toString();
+        if(matchesBlock(abs)){
+          removed.push('script src ' + abs);
+          s.remove();
+          continue;
+        } else {
+          // remove external scripts as well if they match any substring in list (some lists contain domains only)
+          if(matchesBlock(src)){ removed.push('script src ' + src); s.remove(); continue; }
+        }
+        // else we will strip scripts anyway to be safe: strip all script tags
+        removed.push('script src kept (removed for safety) ' + (src||''));
+        s.remove();
+      } else {
+        // inline script
+        if(opts.removeInline){
+          removed.push('inline script removed');
+          s.remove();
+        } else {
+          // if not removing inline, optionally sanitize content? We'll leave it (but this defeats blocking)
+        }
+      }
+    }
+
+    // remove iframe elements if their src matches
+    const iframes = doc.querySelectorAll('iframe');
+    for(const f of iframes){
+      const src = f.getAttribute('src') || '';
+      const abs = src ? new URL(src, baseUrl).toString() : '';
+      if(src && matchesBlock(abs)){
+        removed.push('iframe ' + abs);
+        f.remove();
+      } else if(src && matchesBlock(src)){
+        removed.push('iframe ' + src);
+        f.remove();
+      } else {
+        // allow iframe but optionally sandbox? We'll keep them but remove scripts above
+      }
+    }
+
+    // remove link rel=preload/preconnect/stats etc that may leak
+    const links = doc.querySelectorAll('link[rel]');
+    for(const l of links){
+      const rel = (l.getAttribute('rel') || '').toLowerCase();
+      const href = l.getAttribute('href') || '';
+      const abs = href ? new URL(href, baseUrl).toString() : '';
+      if(href && matchesBlock(abs)){
+        removed.push('link ' + abs);
+        l.remove();
+        continue;
+      }
+      if(href && matchesBlock(href)){
+        removed.push('link ' + href);
+        l.remove();
+        continue;
+      }
+      // remove preload/preconnect/prefetch because they prefetch resources
+      if(['preload','preconnect','dns-prefetch','prefetch'].includes(rel)){
+        removed.push('link rel='+rel+' removed');
+        l.remove();
+      }
+    }
+
+    // remove images whose src matches
+    const imgs = doc.querySelectorAll('img');
+    for(const im of imgs){
+      const src = im.getAttribute('src') || '';
+      if(!src) continue;
+      const abs = new URL(src, baseUrl).toString();
+      if(matchesBlock(abs) || matchesBlock(src)){
+        removed.push('img ' + abs);
+        im.remove();
+      }
+    }
+
+    // remove objects/embeds
+    const embeds = doc.querySelectorAll('embed, object, audio, video, source');
+    for(const e of embeds){
+      const src = e.getAttribute('src') || e.getAttribute('data') || '';
+      if(!src) continue;
+      const abs = new URL(src, baseUrl).toString();
+      if(matchesBlock(abs) || matchesBlock(src)){
+        removed.push((e.tagName||'embed') + ' ' + abs);
+        e.remove();
+      }
+    }
+
+    // sanitize inline event handlers (onclick etc) by removing attributes that start with on*
+    const all = doc.querySelectorAll('*');
+    for(const el of all){
+      for(const attr of Array.from(el.attributes || [])){
+        if(attr.name.toLowerCase().startsWith('on')){
+          el.removeAttribute(attr.name);
+        }
+      }
+    }
+
+    // return serialized HTML and list of removed items
+    const serializer = new XMLSerializer();
+    const out = serializer.serializeToString(doc);
+    return { html: out, removed };
+  }
+
+  // fetch target page via proxy and sanitize
+  async function fetchAndSanitize(targetUrl){
+    status.textContent = 'fetching';
+    removedBox.textContent = '';
+    try{
+      const proxy = proxySel.value || 'https://api.allorigins.win/raw?url=';
+      const fetchUrl = proxy + encodeURIComponent(targetUrl);
+      const res = await fetch(fetchUrl);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const removedList = [];
+      const opts = { removeInline: (removeInlineSel.value === 'yes') };
+      const { html, removed } = sanitizeHtml(text, targetUrl, opts);
+      removed.forEach(r => removedList.push(r));
+      // create blob and set iframe
+      const blob = new Blob([html], { type: 'text/html' });
+      const blobUrl = URL.createObjectURL(blob);
+      viewer.src = blobUrl;
+      status.textContent = 'sanitized';
+      lastRun.textContent = new Date().toLocaleString();
+      removedBox.textContent = removedList.length ? removedList.join('\\n') : 'none';
+    }catch(e){
+      status.textContent = 'error';
+      removedBox.textContent = 'Error: ' + e.message;
+      console.error(e);
+      alert('Fetch failed: ' + e.message + '\\nTry changing proxy or check the URL.');
+    }
+  }
+
+  // events
+  loadBtn.onclick = async () => {
+    const target = urlInput.value.trim();
+    if(!target){ alert('Enter URL'); return; }
+    // ensure blocklist loaded
+    if(!blockPatternsLoaded()){
+      await loadBlocklist(blockUrlInput.value.trim());
+    }
+    await fetchAndSanitize(target);
+  };
+
+  openBtn.onclick = () => {
+    const t = urlInput.value.trim();
+    if(!t) return;
+    window.open(t, '_blank');
+  };
+
+  reloadListBtn.onclick = async () => {
+    await loadBlocklist(blockUrlInput.value.trim());
+  };
+  showListBtn.onclick = () => {
+    if(!blockPatterns.length) listBox.textContent = '(empty)';
+    else listBox.textContent = blockPatterns.join('\\n');
+  };
+
+  enableBlockBtn.onclick = () => { blockingEnabled = true; listBox.style.opacity='1'; };
+  disableBlockBtn.onclick = () => { blockingEnabled = false; listBox.style.opacity='0.4'; };
+
+  function blockPatternsLoaded(){ return Array.isArray(blockPatterns) && blockPatterns.length>0; }
+
+  // load the blocklist on start
+  await loadBlocklist(blockUrlInput.value.trim());
+  status.textContent = 'ready';
+})();
+</script>
+</body>
+</html>
