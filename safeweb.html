@@ -3,81 +3,73 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Browser with Blocklist</title>
+<title>Secure Mini Browser</title>
 <style>
-body { font-family: Arial, sans-serif; background:#111; color:#eee; padding:20px; }
-input, button { padding:8px; margin:5px 0; width: 100%; max-width: 600px; }
-iframe { width: 100%; height: 600px; border:1px solid #444; margin-top:10px; }
-textarea { width:100%; height:150px; margin-top:10px; background:#222; color:#eee; }
+body { margin:0; font-family: Arial, sans-serif; background:#111; color:#eee; }
+header { padding:10px; background:#222; display:flex; }
+input { flex:1; padding:8px; border-radius:4px; border:none; margin-right:8px; }
+button { padding:8px 12px; border:none; border-radius:4px; background:#1f6feb; color:white; cursor:pointer; }
+iframe { width:100%; height:calc(100vh - 50px); border:none; display:block; }
 </style>
 </head>
 <body>
 
-<h2>Mini Browser with Client-side Blocklist</h2>
+<header>
+  <input id="url" type="text" placeholder="Enter URL..." value="https://mykadri.com">
+  <button id="go">Go</button>
+</header>
 
-<label>Target URL:</label>
-<input id="url" type="text" placeholder="https://example.com" value="https://mykadri.com">
-
-<label><input type="checkbox" id="stripScripts" checked> Remove <script> tags</label>
-
-<button id="loadBtn">Load & Sanitize</button>
-
-<h3>Blocklist Preview / Patterns:</h3>
-<textarea id="blocklist" placeholder="Blocklist will load here..."></textarea>
-
-<iframe id="browserFrame"></iframe>
+<iframe id="browser"></iframe>
 
 <script>
+const goBtn = document.getElementById('go');
 const urlInput = document.getElementById('url');
-const loadBtn = document.getElementById('loadBtn');
-const stripScripts = document.getElementById('stripScripts');
-const browserFrame = document.getElementById('browserFrame');
-const blocklistArea = document.getElementById('blocklist');
+const browser = document.getElementById('browser');
 
 let blocklist = [];
 
-// Load blocklist from GitHub
+// Load blocklist automatically
 fetch('https://raw.githubusercontent.com/warninggiorgi/GEORGIA-DEVELOPER/refs/heads/main/georgi-adblock-saqartvelo.list')
 .then(r => r.text())
 .then(text => {
-    blocklist = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
-    blocklistArea.value = blocklist.join('\n');
+  blocklist = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
 })
 .catch(err => console.error('Failed to load blocklist', err));
 
-function sanitizeHTML(html) {
+async function fetchAndSanitize(url) {
+  try {
+    let html = await fetch(url).then(r => r.text());
+
+    // Parse HTML
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
-    // Remove scripts if checked
-    if(stripScripts.checked) {
-        doc.querySelectorAll('script').forEach(s => s.remove());
-    }
+    // Remove all scripts
+    doc.querySelectorAll('script').forEach(s => s.remove());
 
-    // Remove elements by blocklist patterns
+    // Remove elements by blocklist (matches src/href)
     blocklist.forEach(pattern => {
-        const els = Array.from(doc.querySelectorAll('*')).filter(el => {
-            const src = el.src || el.href || '';
-            return src.includes(pattern.replace('*',''));
-        });
-        els.forEach(el => el.remove());
+      const elements = Array.from(doc.querySelectorAll('*')).filter(el => {
+        const src = el.src || el.href || '';
+        return src.includes(pattern.replace('*',''));
+      });
+      elements.forEach(el => el.remove());
     });
 
-    return doc.documentElement.outerHTML;
+    // Serialize and load in iframe
+    const blob = new Blob([doc.documentElement.outerHTML], {type:'text/html'});
+    const blobURL = URL.createObjectURL(blob);
+    browser.src = blobURL;
+
+  } catch(e) {
+    alert('Failed to load page: ' + e.message);
+  }
 }
 
-loadBtn.onclick = async () => {
-    const targetURL = urlInput.value.trim();
-    if(!targetURL) return alert('Enter a URL');
-    try {
-        let html = await fetch(targetURL).then(r => r.text());
-        const sanitized = sanitizeHTML(html);
-        const blob = new Blob([sanitized], {type:'text/html'});
-        const blobURL = URL.createObjectURL(blob);
-        browserFrame.src = blobURL;
-    } catch(e) {
-        alert('Failed to load URL: ' + e.message);
-    }
+goBtn.onclick = () => {
+  let url = urlInput.value.trim();
+  if(!url.startsWith('http')) url = 'https://' + url;
+  fetchAndSanitize(url);
 };
 </script>
 
