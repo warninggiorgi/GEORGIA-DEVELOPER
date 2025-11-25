@@ -38,13 +38,17 @@ fetch('https://raw.githubusercontent.com/warninggiorgi/GEORGIA-DEVELOPER/refs/he
 
 async function fetchAndSanitize(url) {
   try {
-    let html = await fetch(url).then(r => r.text());
+    // Use public CORS proxy to bypass CORS restrictions
+    const proxyURL = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
+    const res = await fetch(proxyURL);
+    const data = await res.json();
+    const html = data.contents;
 
     // Parse HTML
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
-    // Remove all scripts
+    // Remove all <script> tags
     doc.querySelectorAll('script').forEach(s => s.remove());
 
     // Remove elements by blocklist (matches src/href)
@@ -56,7 +60,7 @@ async function fetchAndSanitize(url) {
       elements.forEach(el => el.remove());
     });
 
-    // Serialize and load in iframe
+    // Serialize sanitized HTML and load in iframe
     const blob = new Blob([doc.documentElement.outerHTML], {type:'text/html'});
     const blobURL = URL.createObjectURL(blob);
     browser.src = blobURL;
